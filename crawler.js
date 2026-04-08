@@ -398,9 +398,16 @@ async function crawlDetails(urls, db, concurrency, delay) {
       try {
         const html = await fetchWithRetry(url);
         const data = parseDetailPage(html, url);
+
+        // ── Chỉ lưu VIDEO, bỏ qua ảnh ─────────────────────────────────────
+        if (data.type !== "video") {
+          log.warn(`SKIP (${data.type || "?"}) | ${data.title || url}`);
+          return null;
+        }
+
         await db.upsert(data);
         log.item(
-          `${data.type?.toUpperCase() || "?"} | ${data.title || url} | src: ${data.src ? "✓" : "✗"}`
+          `${data.type.toUpperCase()} | ${data.title || url} | src: ${data.src ? "✓" : "✗"}`
         );
         return data;
       } catch (err) {
