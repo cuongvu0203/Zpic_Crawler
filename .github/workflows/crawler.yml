@@ -1,0 +1,43 @@
+name: Zpic Crawler
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # Chạy mỗi ngày lúc 2:00 AM UTC (9:00 sáng VN)
+  workflow_dispatch:        # Nút chạy thủ công trên GitHub
+    inputs:
+      url:
+        description: 'URL category muốn crawl'
+        required: false
+        default: 'https://zpic.biz/category/video-nsfw/'
+      limit:
+        description: 'Số video tối đa (0 = không giới hạn)'
+        required: false
+        default: '200'
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350    # tối đa ~6 tiếng
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run crawler
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          node crawler.js \
+            --url "${{ github.event.inputs.url || 'https://zpic.biz/category/video-nsfw/' }}" \
+            --limit ${{ github.event.inputs.limit || '200' }} \
+            --delay 2000 \
+            --concurrency 3

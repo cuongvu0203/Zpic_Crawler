@@ -33,7 +33,7 @@ const argv = yargs(hideBin(process.argv))
     alias: "m",
     type: "string",
     description: "MongoDB connection string",
-    default: "mongodb+srv://yihoyif834_db_user:xFjda4mUC5loqmPr@zpic.mx23ymo.mongodb.net",
+    default: process.env.MONGODB_URI || "mongodb://localhost:27017",
   })
   .option("db", {
     type: "string",
@@ -407,7 +407,7 @@ async function crawlDetails(urls, db, concurrency, delay) {
 
         await db.upsert(data);
         log.item(
-          `${data.type.toUpperCase()} | ${data.title || url} | src: ${data.src ? "✓" : "✗"}`
+          `${data.type?.toUpperCase() || "?"} | ${data.title || url} | src: ${data.src ? "✓" : "✗"}`
         );
         return data;
       } catch (err) {
