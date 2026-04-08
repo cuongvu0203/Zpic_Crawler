@@ -33,7 +33,7 @@ const argv = yargs(hideBin(process.argv))
     alias: "m",
     type: "string",
     description: "MongoDB connection string",
-    default: process.env.MONGODB_URI || "mongodb://localhost:27017",
+    default: process.env.MONGODB_URI || "localhost:27017",
   })
   .option("db", {
     type: "string",
@@ -135,80 +135,101 @@ async function fetchWithRetry(url, retries = 3) {
   }
 }
 
-// ─── Parse listing page: lấy item URLs + next page URL ──────────────────────
+// ─── Parse listing page: extract data-object JSON + next page ───────────────
 /**
- * Chevereto V4 cursor pagination:
- *   ?page=N&seek=TIMESTAMP.UNIQUE_ID
+ * Chevereto V4 nhúng toàn bộ metadata vào attribute data-object (JSON encoded)
+ * trên mỗi .list-item. Ta đọc thẳng từ đó — không cần fetch detail page nữa.
  *
- * "seek" = cursor được lấy trực tiếp từ thẻ <a rel="next"> trong HTML.
- * Ta KHÔNG cần tự tính seek — chỉ cần follow link "next page".
+ * data-media="video" mới là field đúng để phân biệt video/ảnh.
+ * data-type luôn = "image" cho tất cả nên KHÔNG dùng để filter.
  */
 function parseListingPage(html, baseUrl) {
   const $ = cheerio.load(html);
-  const itemUrls = [];
+  const items = [];
+  const itemUrls = []; // fallback nếu data-object lỗi
+  const seen = new Set();
 
-  // ── 1. Lấy URLs của từng media item ────────────────────────────────────────
-  // Chevereto V4 render thumbnail với link dạng /view/Slug.ID
-  $("a[href]").each((_, el) => {
-    const href = $(el).attr("href") || "";
-    // Pattern: /view/Something.XXXXX hoặc full URL
-    if (/\/view\/[^"'\s]+/.test(href)) {
-      const fullUrl = href.startsWith("http")
-        ? href
-        : new URL(href, baseUrl).href;
-      if (!itemUrls.includes(fullUrl)) {
-        itemUrls.push(fullUrl);
-      }
+  $(".list-item[data-object]").each((_, el) => {
+    const $el = $(el);
+
+    // Chỉ lấy VIDEO — data-media mới đúng, data-type luôn = "image"
+    if ($el.attr("data-media") !== "video") return;
+
+    // Parse data-object JSON
+    let obj = null;
+    try {
+      obj = JSON.parse(decodeURIComponent($el.attr("data-object")));
+    } catch (e) { /* parse lỗi → fallback */ }
+
+    // sourceUrl
+    const sourceUrl =
+      obj && obj.url_viewer ? obj.url_viewer :
+      $el.attr("data-url-short") ||
+      (() => {
+        const href = $el.find("a.image-container").attr("href") || "";
+        return href.startsWith("http") ? href : (href ? new URL(href, baseUrl).href : null);
+      })();
+
+    if (!sourceUrl || seen.has(sourceUrl)) return;
+    seen.add(sourceUrl);
+
+    if (!obj) { itemUrls.push(sourceUrl); return; }
+
+    // Build title từ data-description nếu có
+    const rawDesc = $el.attr("data-description") || "";
+    let title = obj.title || obj.display_title || obj.name || null;
+    if (rawDesc && rawDesc.includes(" - ")) {
+      const part = rawDesc.split(" - ").pop().trim();
+      if (part) title = part;
     }
+
+    items.push({
+      sourceUrl,
+      type: "video",
+      src: obj.url || (obj.image && obj.image.url) || null,
+      poster: obj.url_frame || null,
+      thumbnail: (obj.thumb && obj.thumb.url) || obj.url_frame || null,
+      title,
+      description: rawDesc || null,
+      extension: (obj.extension || "").toLowerCase(),
+      width: obj.width ? parseInt(obj.width) : null,
+      height: obj.height ? parseInt(obj.height) : null,
+      size: (obj.image && obj.image.size) ? parseInt(obj.image.size) : null,
+      uploader: (obj.user && (obj.user.username || obj.user.name_short_html)) || null,
+      uploaderUrl: (obj.user && obj.user.url)
+        ? (obj.user.url.startsWith("http") ? obj.user.url : new URL(obj.user.url, baseUrl).href)
+        : null,
+      howLongAgo: obj.how_long_ago || null,
+      crawledAt: new Date(),
+    });
   });
 
-  // ── 2. Lấy next page URL từ <a rel="next"> hoặc pagination ─────────────────
+  // Next page URL
   let nextPageUrl = null;
-
-  // Cách 1: rel="next" (chuẩn HTML)
-  const relNext = $('a[rel="next"]').attr("href");
-  if (relNext) {
-    nextPageUrl = relNext.startsWith("http")
-      ? relNext
-      : new URL(relNext, baseUrl).href;
+  const paginationNext = $('a[data-pagination="next"]').attr("href");
+  if (paginationNext) {
+    nextPageUrl = paginationNext.startsWith("http")
+      ? paginationNext : new URL(paginationNext, baseUrl).href;
   }
-
-  // Cách 2: nút "Next" / ">" trong pagination block
   if (!nextPageUrl) {
-    $("a").each((_, el) => {
-      const text = $(el).text().trim().toLowerCase();
-      const href = $(el).attr("href") || "";
-      if (
-        (text === "next" ||
-          text === ">" ||
-          text === "→" ||
-          text.includes("next page")) &&
-        href.includes("seek=")
-      ) {
-        nextPageUrl = href.startsWith("http")
-          ? href
-          : new URL(href, baseUrl).href;
-      }
-    });
+    const relNext = $('a[rel="next"]').attr("href");
+    if (relNext) nextPageUrl = relNext.startsWith("http") ? relNext : new URL(relNext, baseUrl).href;
   }
-
-  // Cách 3: Tìm bất kỳ link nào chứa ?page=N&seek= (lấy page số lớn nhất)
+  if (!nextPageUrl) {
+    const pNext = $(".pagination-next a").attr("href");
+    if (pNext) nextPageUrl = pNext.startsWith("http") ? pNext : new URL(pNext, baseUrl).href;
+  }
   if (!nextPageUrl) {
     let maxPage = 0;
     $('a[href*="seek="]').each((_, el) => {
       const href = $(el).attr("href") || "";
       const m = href.match(/[?&]page=(\d+)/);
-      const pageNum = m ? parseInt(m[1]) : 0;
-      if (pageNum > maxPage) {
-        maxPage = pageNum;
-        nextPageUrl = href.startsWith("http")
-          ? href
-          : new URL(href, baseUrl).href;
-      }
+      const p = m ? parseInt(m[1]) : 0;
+      if (p > maxPage) { maxPage = p; nextPageUrl = href.startsWith("http") ? href : new URL(href, baseUrl).href; }
     });
   }
 
-  return { itemUrls, nextPageUrl };
+  return { items, itemUrls, nextPageUrl };
 }
 
 // ─── Parse detail page: extract media info ───────────────────────────────────
@@ -471,27 +492,43 @@ async function main() {
         break;
       }
 
-      const { itemUrls, nextPageUrl } = parseListingPage(html, currentUrl);
+      const { items, itemUrls, nextPageUrl } = parseListingPage(html, currentUrl);
       log.info(
-        `Tìm thấy ${itemUrls.length} items | Next: ${nextPageUrl || "không có"}`
+        `Tìm thấy ${items.length} video (+ ${itemUrls.length} fallback) | Next: ${nextPageUrl || "không có"}`
       );
 
-      if (itemUrls.length === 0) {
+      if (items.length === 0 && itemUrls.length === 0) {
         log.warn("Không tìm thấy item nào — kiểm tra lại selector hoặc trang đã hết.");
         break;
       }
 
-      // Giới hạn số item nếu cần
-      let toProcess = itemUrls;
+      // ── Lưu trực tiếp items từ data-object (không cần fetch detail) ─────────
+      let toSave = items;
       if (limit > 0) {
         const remaining = limit - stats.items;
         if (remaining <= 0) break;
-        toProcess = itemUrls.slice(0, remaining);
+        toSave = items.slice(0, remaining);
       }
 
-      // Crawl detail pages
-      const crawled = await crawlDetails(toProcess, db, concurrency, delay);
-      stats.items += crawled.length;
+      let saved = 0;
+      for (const item of toSave) {
+        if (await db.exists(item.sourceUrl)) {
+          log.warn(`Skip (đã có): ${item.title || item.sourceUrl}`);
+          continue;
+        }
+        await db.upsert(item);
+        log.item(`VIDEO | ${item.title || item.sourceUrl} | src: ${item.src ? "✓" : "✗"}`);
+        saved++;
+      }
+
+      // ── Fallback: fetch detail cho item không parse được data-object ─────────
+      if (itemUrls.length > 0) {
+        log.warn(`Fallback fetch ${itemUrls.length} item không có data-object...`);
+        const fallbackCrawled = await crawlDetails(itemUrls, db, concurrency, delay);
+        saved += fallbackCrawled.length;
+      }
+
+      stats.items += saved;
       stats.pages += 1;
 
       // Lưu checkpoint sau mỗi trang
