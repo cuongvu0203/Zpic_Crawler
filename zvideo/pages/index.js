@@ -156,13 +156,15 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>ZVID — Video Archive</title>
+        <title>Zpic.Biz - Video Archive</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>" />
       </Head>
 
       <header className="header">
-        <div className="logo">Z<span>V</span>ID</div>
+        <div className="logo">
+          <img src="/img/logo.png" alt="Zpic.Biz" />
+        </div>
 
         <div className="search-bar">
           <div className="search-wrap">

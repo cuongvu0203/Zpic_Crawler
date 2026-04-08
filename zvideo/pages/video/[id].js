@@ -40,13 +40,13 @@ export default function VideoDetail() {
   return (
     <>
       <Head>
-        <title>{video?.title || "Video"} — ZVID</title>
+        <title>{video?.title || "Video"} — Zpic.Biz - Video Archive</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <header className="header">
         <div className="logo" style={{ cursor: "pointer" }} onClick={() => router.push("/")}>
-          Z<span style={{ color: "var(--accent2)" }}>V</span>ID
+          <img src="/img/logo.png" alt="Zpic.Biz" />
         </div>
       </header>
 
