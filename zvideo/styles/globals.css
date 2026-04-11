@@ -402,13 +402,303 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.6;
 }
 
-/* ── Responsive ─────────────────────────────────────────── */
+/* ── Responsive (desktop) ────────────────────────────────── */
 @media (max-width: 640px) {
-  .header { padding: 0 1rem; gap: 1rem; }
-  .search-bar { max-width: none; }
-  .date-input { display: none; }
-  .grid-container { padding: 1rem 1rem 3rem; }
-  .video-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; }
   .detail-wrap { padding: 1rem; }
   .video-title { font-size: 1.4rem; }
+}
+
+/* ── Mobile TikTok Feed ──────────────────────────────────── */
+
+/* Root container: fullscreen, fixed */
+.mobile-root {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  z-index: 10;
+}
+
+/* Scroll-snap feed container */
+.feed-container {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -ms-overflow-style: none;
+}
+.feed-container::-webkit-scrollbar { display: none; }
+
+/* Each video slide */
+.feed-item {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+/* Video fills the slide */
+.feed-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Bottom gradient + info */
+.feed-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent 0%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.85) 100%);
+  padding: 3.5rem 1rem 1.75rem;
+  pointer-events: none;
+}
+
+.feed-info { pointer-events: auto; }
+
+.feed-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.4;
+  margin-bottom: 0.45rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.65);
+}
+
+.feed-source-link {
+  color: var(--accent);
+  font-size: 0.75rem;
+  background: rgba(232,255,71,0.12);
+  border: 1px solid rgba(232,255,71,0.3);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  text-decoration: none;
+  pointer-events: auto;
+  transition: background 0.15s;
+}
+.feed-source-link:hover { background: rgba(232,255,71,0.25); }
+
+/* Top bar (logo + buttons) */
+.mobile-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: linear-gradient(rgba(0,0,0,0.45), transparent);
+  pointer-events: none;
+}
+.mobile-topbar > * { pointer-events: auto; }
+
+.mobile-logo {
+  height: 34px;
+  width: 34px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.mobile-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-icon-btn {
+  background: rgba(0,0,0,0.35);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mobile-icon-btn:active { background: rgba(255,255,255,0.2); }
+
+/* Sentinel / loading indicator */
+.feed-sentinel {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feed-end-text {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.35);
+}
+
+/* Full-screen loading */
+.feed-loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Spinner */
+.feed-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,0.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  will-change: transform;
+  animation: feedSpin 0.75s linear infinite;
+}
+.feed-spinner-sm {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+@keyframes feedSpin { to { transform: rotate(360deg); } }
+
+/* ── Search Overlay (mobile) ─────────────────────────────── */
+
+.search-overlay-mobile {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.search-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+}
+
+.search-overlay-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.soi-icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-overlay-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  padding: 0.6rem 2rem 0.6rem 2.2rem;
+  outline: none;
+}
+.search-overlay-input:focus { border-color: var(--accent); }
+
+.soi-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.search-overlay-cancel {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0.25rem 0;
+}
+
+.search-overlay-results {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.soe-state {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.search-result-item:active { background: var(--surface); }
+
+.sri-thumb {
+  width: 88px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 5px;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+
+.sri-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sri-title {
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.2rem;
+}
+
+.sri-date {
+  font-size: 0.75rem;
+  color: var(--muted);
 }
